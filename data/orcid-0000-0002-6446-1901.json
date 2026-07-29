@@ -1,0 +1,127 @@
+{
+ "generatedAt": "2026-07-29",
+ "author": {
+  "orcid": "0000-0002-6446-1901",
+  "name": "Lukas Röseler"
+ },
+ "totalAuthorWorks": 115,
+ "pool": [
+  {
+   "id": "https://openalex.org/W4286219945",
+   "doi": "https://doi.org/10.1073/pnas.2120377119",
+   "title": "Examining the generalizability of research findings from archival data",
+   "year": 2022,
+   "citedByCount": 57,
+   "journalName": "Proceedings of the National Academy of Sciences",
+   "journalMeanCitedness": 8.12037119657357
+  },
+  {
+   "id": "https://openalex.org/W4285182054",
+   "doi": "https://doi.org/10.1037/bul0000356",
+   "title": "Dominance and prestige: Meta-analytic review of experimentally induced body position effects on behavioral, self-report, and physiological dependent variables.",
+   "year": 2022,
+   "citedByCount": 47,
+   "journalName": "Psychological Bulletin",
+   "journalMeanCitedness": 9.955882352941176
+  },
+  {
+   "id": "https://openalex.org/W3093603739",
+   "doi": "https://doi.org/10.1016/j.jesp.2020.104066",
+   "title": "Evidence against subliminal anchoring: Two close, highly powered, preregistered, and failed replication attempts",
+   "year": 2020,
+   "citedByCount": 38,
+   "journalName": "Journal of Experimental Social Psychology",
+   "journalMeanCitedness": 1.6394557823129252
+  },
+  {
+   "id": "https://openalex.org/W7128546758",
+   "doi": "https://doi.org/10.1038/s41586-025-09844-9",
+   "title": "Investigating the analytical robustness of the social and behavioural sciences",
+   "year": 2026,
+   "citedByCount": 10,
+   "journalName": "Nature",
+   "journalMeanCitedness": 17.92857763489443
+  },
+  {
+   "id": "https://openalex.org/W4385249117",
+   "doi": "https://doi.org/10.1016/j.jbusres.2023.114189",
+   "title": "A toolbox to evaluate the trustworthiness of published findings",
+   "year": 2023,
+   "citedByCount": 14,
+   "journalName": "Journal of Business Research",
+   "journalMeanCitedness": 9.625314861460957
+  },
+  {
+   "id": "https://openalex.org/W3135164005",
+   "doi": "https://doi.org/10.5964/ejop.2639",
+   "title": "The upsides and downsides of high self-control: Evidence for effects of similarity and situation dependency",
+   "year": 2021,
+   "citedByCount": 14,
+   "journalName": "Europe’s Journal of Psychology",
+   "journalMeanCitedness": 1.783132530120482
+  },
+  {
+   "id": "https://openalex.org/W4402441701",
+   "doi": "https://doi.org/10.5334/jopd.101",
+   "title": "The Replication Database: Documenting the Replicability of Psychological Science",
+   "year": 2024,
+   "citedByCount": 5,
+   "journalName": "Journal of Open Psychology Data",
+   "journalMeanCitedness": 0.75
+  },
+  {
+   "id": "https://openalex.org/W2998146334",
+   "doi": "https://doi.org/10.1016/j.jesp.2019.103942",
+   "title": "Does ego depletion reduce judgment adjustment for both internally and externally generated anchors?",
+   "year": 2019,
+   "citedByCount": 13,
+   "journalName": "Journal of Experimental Social Psychology",
+   "journalMeanCitedness": 1.6394557823129252
+  },
+  {
+   "id": "https://openalex.org/W4307259265",
+   "doi": "https://doi.org/10.5334/jopd.67",
+   "title": "The Open Anchoring Quest Dataset: Anchored Estimates from 96 Studies on Anchoring Effects",
+   "year": 2022,
+   "citedByCount": 4,
+   "journalName": "Journal of Open Psychology Data",
+   "journalMeanCitedness": 0.75
+  },
+  {
+   "id": "https://openalex.org/W3203815682",
+   "doi": "https://doi.org/10.1080/02699931.2021.1979473",
+   "title": "Does facial redness really affect emotion perception? Evidence for limited generalisability of effects of facial redness on emotion perception in a large sample",
+   "year": 2021,
+   "citedByCount": 3,
+   "journalName": "Cognition & Emotion",
+   "journalMeanCitedness": 2.302211302211302
+  },
+  {
+   "id": "https://openalex.org/W4406182287",
+   "doi": "https://doi.org/10.15626/mp.2022.3236",
+   "title": "Measurements of Susceptibility to Anchoring are Unreliable",
+   "year": 2024,
+   "citedByCount": 1,
+   "journalName": "Meta-Psychology",
+   "journalMeanCitedness": 1.5507246376811594
+  },
+  {
+   "id": "https://openalex.org/W3177116827",
+   "doi": "https://doi.org/10.1177/1745691620984474",
+   "title": "Commentary on Elkjær et al.’s (2020) Meta-Analysis on Expansive Versus Contractive Nonverbal Displays",
+   "year": 2021,
+   "citedByCount": 1,
+   "journalName": "Perspectives on Psychological Science",
+   "journalMeanCitedness": 9.381578947368421
+  },
+  {
+   "id": "https://openalex.org/W4401819442",
+   "doi": "https://doi.org/10.5334/jopd.92",
+   "title": "Correction: The Open Anchoring Quest Dataset: Anchored Estimates from 96 Studies on Anchoring Effects",
+   "year": 2024,
+   "citedByCount": 1,
+   "journalName": "Journal of Open Psychology Data",
+   "journalMeanCitedness": 0.75
+  }
+ ]
+}

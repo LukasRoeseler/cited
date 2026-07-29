@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Cited — guess the citation count</title>
+<meta name="description" content="Cited: a citation-guessing game powered by OpenAlex. Given an ORCID iD, guess how many times each of the author's works was cited.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2300305D'/%3E%3Cpolygon points='0,0 30,0 0,30' fill='%23009FE3'/%3E%3Ctext x='36' y='45' font-family='Arial, Helvetica, sans-serif' font-size='32' font-weight='700' fill='%23ffffff' text-anchor='middle'%3EC%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --c-primary: #00305D;
+  --c-primary-dark: #001d3a;
+  --c-accent: #009FE3;
+  --c-guess: #E67E22;
+  --c-success: #2e7d32;
+  --c-success-bg: #e8f5e9;
+  --c-danger: #b3261e;
+  --c-danger-bg: #fdecea;
+  --c-surface: #eef1f4;
+  --c-border: #dce1e6;
+  --c-text: #1a1d21;
+  --c-muted: #5b6770;
+  --c-bg: #ffffff;
+  --c-card: #ffffff;
+  --shadow: 0 1px 4px rgba(0,0,0,.08);
+  --shadow-lg: 0 12px 28px rgba(0,20,40,0.16);
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Calibri, Roboto, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --c-surface: #12181f;
+    --c-border: #2a333d;
+    --c-text: #eef1f4;
+    --c-muted: #9aa7b0;
+    --c-bg: #0b0f13;
+    --c-card: #171f27;
+    --c-success-bg: #12301a;
+    --c-danger-bg: #3a1512;
+    --shadow-lg: 0 12px 28px rgba(0,0,0,0.5);
+  }
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  min-height:100vh;
+  font-family: var(--font);
+  background: var(--c-surface);
+  color: var(--c-text);
+  display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden;
+}
+
+/* ================= HERO / HEADER ================= */
+.hero{
+  width:100%;
+  position:relative;
+  overflow:hidden;
+  background: var(--c-primary);
+  color:#fff;
+  padding: 14px clamp(12px,4vw,32px);
+}
+.hero::before{
+  content:"";
+  position:absolute; top:0; left:0;
+  width: 34%; height: 10px;
+  background: var(--c-accent);
+  clip-path: polygon(0 0, 0 100%, 100% 0);
+  opacity:0.95;
+}
+.hero-inner{
+  max-width: 900px; margin:0 auto;
+  display:flex; align-items:center; gap: 14px; flex-wrap:wrap;
+  position:relative; z-index:1;
+}
+.hero-logo{ height: 34px; width:auto; display:block; border-radius:3px; background:#fff; padding:3px 6px; flex:0 0 auto; }
+.hero-titles{ flex: 1 1 200px; min-width:0; }
+.hero-titles h1{ margin:0; font-size: clamp(1.3rem, 4vw, 1.7rem); letter-spacing:0.3px; }
+.hero-titles p{ margin:2px 0 0; font-size:0.78rem; color:#cfe4f5; }
+.hero-links{ display:flex; gap:10px; flex-wrap:wrap; font-size:0.74rem; }
+.hero-links a{ color:#fff; opacity:0.85; text-decoration:none; border-bottom:1px dotted rgba(255,255,255,0.6); }
+.hero-links a:hover{ opacity:1; }
+
+/* ================= LAYOUT ================= */
+main{ width:100%; display:flex; flex-direction:column; align-items:center; padding: 18px 12px 40px; }
+.card{
+  width:min(640px, 96vw);
+  background: var(--c-card);
+  border:1px solid var(--c-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 22px clamp(16px,4vw,28px);
+  margin-bottom: 18px;
+}
+h2{ margin-top:0; font-size:1.3rem; color: var(--c-primary); }
+@media (prefers-color-scheme: dark){ h2{ color:#7fc8f0; } }
+h3{ font-size:1.02rem; color: var(--c-primary); margin: 18px 0 6px; }
+@media (prefers-color-scheme: dark){ h3{ color:#7fc8f0; } }
+p{ line-height:1.55; font-size:0.92rem; }
+ol.rules{ padding-left: 1.2em; font-size:0.88rem; line-height:1.6; }
+ol.rules li{ margin-bottom:4px; }
+.muted{ color: var(--c-muted); font-size:0.82rem; }
+
+.btn{
+  border: 1.5px solid var(--c-primary);
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight:600;
+  font-size:0.86rem;
+  cursor:pointer;
+  background: #fff;
+  color: var(--c-primary);
+  font-family: inherit;
+}
+@media (prefers-color-scheme: dark){ .btn{ background: var(--c-card); color:#7fc8f0; border-color:#7fc8f0; } }
+.btn:active{ transform: translateY(1px); }
+.btn.primary{ background: var(--c-primary); color:#fff; }
+.btn.accent{ background: var(--c-accent); color:#fff; border-color: var(--c-accent); }
+.btn.small{ padding:6px 11px; font-size:0.76rem; }
+.btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+
+/* ================= START ================= */
+.info-box{
+  border-left: 3px solid var(--c-accent);
+  background: rgba(0,159,227,0.08);
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size:0.82rem;
+  margin: 14px 0;
+}
+.privacy-note{ font-size:0.76rem; color: var(--c-muted); font-style:italic; margin: 6px 0 16px; }
+label{ display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px; }
+.hint{ display:block; font-weight:400; font-size:0.76rem; color: var(--c-muted); margin-bottom:8px; }
+.input-row{ display:flex; gap:8px; flex-wrap:wrap; }
+input[type=text], input[type=number], input[type=email]{
+  flex:1 1 200px; min-width:0; width:100%;
+  padding: 12px 11px;
+  border-radius:6px;
+  border: 1.5px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size:16px;
+  font-family: inherit;
+}
+.field{ margin: 14px 0; }
+.status{ margin-top:10px; font-size:0.82rem; min-height:1.2em; }
+.status.pending{ color: var(--c-muted); font-style:italic; }
+.status.ok{ color: var(--c-success); }
+@media (prefers-color-scheme: dark){ .status.ok{ color:#7ddb82; } }
+.status.err{ color: var(--c-danger); font-weight:600; }
+@media (prefers-color-scheme: dark){ .status.err{ color:#ff8a80; } }
+
+#authorWorksBlock{ display:none; margin-top:6px; }
+.stepper{ display:flex; align-items:center; gap:10px; }
+.stepper button{
+  width:32px; height:32px; border-radius:50%;
+  border: 1.5px solid var(--c-primary); background:#fff; color: var(--c-primary);
+  font-size:1.1rem; font-weight:700; cursor:pointer; line-height:1;
+}
+@media (prefers-color-scheme: dark){ .stepper button{ background: var(--c-card); color:#7fc8f0; border-color:#7fc8f0; } }
+.stepper output{ min-width:2.6em; text-align:center; font-weight:700; }
+
+/* ================= GAME ================= */
+#gameScreen{ display:none; }
+.game-topbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+.progress{ font-size:0.82rem; color: var(--c-muted); font-weight:600; }
+.lives{ font-size:1.2rem; letter-spacing:3px; }
+.heart{ color: var(--c-danger); }
+.heart.lost{ color: var(--c-border); }
+
+.work-card{
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--c-surface);
+}
+@media (prefers-color-scheme: dark){ .work-card{ background:#0e141a; } }
+.work-title{ font-size:1.05rem; font-style:italic; margin:0 0 6px; }
+.work-meta{ font-size:0.8rem; color: var(--c-muted); margin-bottom:10px; }
+.journal-stat{
+  display:flex; justify-content:space-between; align-items:center;
+  background: var(--c-card); border:1px solid var(--c-border); border-radius:6px;
+  padding: 10px 14px; margin-bottom:14px;
+}
+.journal-stat .label{ font-size:0.78rem; color: var(--c-muted); }
+.journal-stat .value{ font-size:1.3rem; font-weight:700; color: var(--c-accent); }
+
+.guess-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.guess-row input{ flex:1 1 140px; font-size:1.1rem; text-align:center; }
+.guess-row button{ flex: 0 0 auto; }
+
+.feedback-panel{ display:none; margin-top:14px; border-radius:8px; padding:14px; text-align:center; }
+.feedback-panel.correct{ background: var(--c-success-bg); border:1px solid var(--c-success); }
+.feedback-panel.wrong{ background: var(--c-danger-bg); border:1px solid var(--c-danger); }
+.feedback-panel .fb-title{ font-weight:700; font-size:1.05rem; margin-bottom:4px; }
+.feedback-panel.correct .fb-title{ color: var(--c-success); }
+@media (prefers-color-scheme: dark){ .feedback-panel.correct .fb-title{ color:#7ddb82; } }
+.feedback-panel.wrong .fb-title{ color: var(--c-danger); }
+@media (prefers-color-scheme: dark){ .feedback-panel.wrong .fb-title{ color:#ff8a80; } }
+.feedback-panel .fb-detail{ font-size:0.86rem; color: var(--c-text); }
+
+/* ================= END ================= */
+#endScreen{ display:none; }
+.end-stats{ display:flex; gap:16px; flex-wrap:wrap; margin: 10px 0 18px; }
+.stat-tile{ flex:1 1 100px; text-align:center; background: var(--c-surface); border-radius:8px; padding:12px 8px; }
+@media (prefers-color-scheme: dark){ .stat-tile{ background:#0e141a; } }
+.stat-tile .num{ font-size:1.5rem; font-weight:700; color: var(--c-primary); }
+@media (prefers-color-scheme: dark){ .stat-tile .num{ color:#7fc8f0; } }
+.stat-tile .lbl{ font-size:0.72rem; color: var(--c-muted); }
+
+.corr-banner{
+  background: var(--c-surface); border:1px solid var(--c-border); border-radius:8px;
+  padding:10px 14px; font-size:0.86rem; margin: 4px 0 14px;
+}
+@media (prefers-color-scheme: dark){ .corr-banner{ background:#0e141a; } }
+.corr-banner b{ color: var(--c-primary); font-size:1rem; }
+@media (prefers-color-scheme: dark){ .corr-banner b{ color:#7fc8f0; } }
+
+.chart-wrap{ position:relative; width:100%; overflow-x:auto; }
+svg.scatter{ width:100%; height:auto; min-width:320px; }
+.axis-line{ stroke: var(--c-border); stroke-width:1; }
+.grid-line{ stroke: var(--c-border); stroke-width:1; opacity:0.6; }
+.axis-label{ fill: var(--c-muted); font-size:11px; font-family: var(--font); }
+.dot-visible{ fill: var(--c-accent); stroke: var(--c-card); stroke-width:2; }
+.dot-guess{ fill: var(--c-guess); stroke: var(--c-card); stroke-width:2; }
+.dot-hit{ fill: transparent; cursor:pointer; }
+.connector{ stroke: var(--c-muted); stroke-width:1; opacity:0.5; }
+
+.chart-toolbar{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin: 4px 0 6px; }
+.legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; align-items:center; }
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-swatch{ width:12px; height:12px; border-radius:3px; display:inline-block; }
+
+.list-toggle{ font-size:0.78rem; background:none; border:none; color: var(--c-accent); cursor:pointer; padding:4px 0; text-decoration:underline; }
+.table-wrap{ width:100%; overflow-x:auto; }
+.results-table{ width:100%; min-width:480px; border-collapse:collapse; font-size:0.78rem; margin-top:10px; display:none; }
+.results-table th, .results-table td{ text-align:left; padding:6px 8px; border-bottom:1px solid var(--c-border); }
+.results-table a{ color: var(--c-accent); }
+
+.share-row{ display:flex; gap:8px; flex-wrap:wrap; margin: 14px 0; }
+.share-btn{ display:inline-flex; align-items:center; gap:6px; }
+.share-btn.bluesky{ border-color:#0085FF; color:#0085FF; }
+.share-btn.mastodon{ border-color:#6364FF; color:#6364FF; }
+.share-btn.linkedin{ border-color:#0A66C2; color:#0A66C2; }
+@media (prefers-color-scheme: dark){
+  .share-btn.bluesky{ background:var(--c-card); }
+  .share-btn.mastodon{ background:var(--c-card); }
+  .share-btn.linkedin{ background:var(--c-card); }
+}
+
+.tooltip{
+  position:fixed; pointer-events:none; z-index:50;
+  background: var(--c-primary-dark); color:#fff;
+  padding:6px 10px; border-radius:6px; font-size:0.76rem;
+  max-width: 240px; box-shadow: var(--shadow-lg); display:none; line-height:1.4;
+}
+.tooltip b{ display:block; font-size:0.8rem; }
+
+.toast{
+  position:fixed; top:14px; left:50%; transform:translateX(-50%);
+  background: var(--c-primary-dark); color:#fff;
+  padding:9px 18px; border-radius:6px; font-size:0.84rem;
+  z-index:60; opacity:0; pointer-events:none; transition: opacity .3s;
+}
+.toast.show{ opacity:1; }
+
+footer{ font-size:0.74rem; color: var(--c-muted); text-align:center; padding: 6px 12px 24px; max-width:640px; }
+footer a{ color: var(--c-muted); }
+.citation-block{ margin-top:10px; padding-top:10px; border-top:1px solid var(--c-border); }
+.citation-text{ font-style:italic; cursor:pointer; border-bottom:1px dotted var(--c-muted); }
+.citation-text:hover{ opacity:0.85; }
+
+@media (max-width: 480px){
+  .card{ padding: 16px 14px; border-radius:0; width:100%; }
+  main{ padding: 12px 0 32px; }
+  .btn{ padding: 12px 16px; font-size:0.9rem; width:100%; }
+  .btn-row{ flex-direction:column; }
+  .btn-row .btn{ width:100%; }
+  .share-row{ flex-direction:column; }
+  .share-row .btn{ width:100%; justify-content:center; }
+  .input-row{ flex-direction:column; }
+  .input-row .btn{ width:100%; }
+  .guess-row{ flex-direction:column; align-items:stretch; }
+  .guess-row input, .guess-row button{ width:100%; }
+  .stepper{ justify-content:center; }
+  .stepper button{ width:40px; height:40px; }
+  .chart-toolbar{ flex-direction:column; align-items:flex-start; }
+  .chart-toolbar .btn{ width:100%; }
+  .hero-inner{ gap:10px; }
+  .hero-links{ width:100%; }
+  .end-stats{ gap:8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <img class="hero-logo" alt="MüCOS" src="data:image/webp;base64,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">
+    <div class="hero-titles">
+      <h1>Cited</h1>
+      <p>Guess the citation count — powered by OpenAlex</p>
+    </div>
+    <div class="hero-links">
+      <a href="https://github.com/LukasRoeseler/cited" target="_blank" rel="noopener">GitHub ↗</a>
+      <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">Learn more about why one number cannot describe a journal ↗</a>
+    </div>
+  </div>
+</div>
+
+<main>
+
+<!-- ===================== START ===================== -->
+<div id="startScreen" class="card">
+  <h2>How many times was this cited?</h2>
+  <ol class="rules">
+    <li>Enter the ORCID iD of the researcher you want to play as.</li>
+    <li>We pull all of their works from <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a>, along with each hosting journal's mean citedness (a 2-year, impact-factor-like average) — only works where <b>both</b> the citation count and the journal's mean citedness are known are used.</li>
+    <li>One work at a time, you'll see its title, journal, and the journal's mean citedness. Guess how many times <i>that specific work</i> was cited.</li>
+    <li>Within 50% of the real number — or within 10 citations, whichever gives you more room — = 🎉 correct. Otherwise = 💔 you lose a life.</li>
+    <li>You start with <b>3 lives</b>. Get through every work in the round before you run out to win!</li>
+    <li>At the end, see how well journal mean citedness actually predicts a single paper's citations — plus a rank correlation, a plot of your guesses vs. reality, and share buttons.</li>
+  </ol>
+  <div class="info-box">Quantitative metrics are not a proxy for research quality — <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">read why one number can't describe a journal</a>.</div>
+
+  <div class="field">
+    <label for="orcidInput">ORCID iD</label>
+    <span class="hint">e.g. 0000-0002-6446-1901, or a full orcid.org link</span>
+    <input type="text" id="orcidInput" placeholder="0000-0000-0000-0000" maxlength="60">
+  </div>
+  <div class="field">
+    <label for="emailInput">Your email (optional)</label>
+    <span class="hint">Sent only to OpenAlex with each request for their polite-pool access — we don't store it anywhere.</span>
+    <input type="email" id="emailInput" placeholder="you@example.com" maxlength="120">
+  </div>
+  <p class="privacy-note">Nothing you enter on this page is saved anywhere — no accounts, no cookies, no server. Requests go straight from your browser to the public OpenAlex API.</p>
+  <div class="input-row">
+    <button type="button" class="btn primary" id="fetchAuthorBtn">Find author</button>
+  </div>
+  <div class="status" id="authorStatus"></div>
+
+  <div id="authorWorksBlock">
+    <div class="field">
+      <label>Works to play this round</label>
+      <span class="hint" id="poolHint">—</span>
+      <div class="stepper">
+        <button type="button" id="roundMinus">−</button>
+        <output id="roundCountOut">12</output>
+        <button type="button" id="roundPlus">+</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn primary" id="startGameBtn">Start Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== GAME ===================== -->
+<div id="gameScreen" class="card">
+  <div class="game-topbar">
+    <div class="progress" id="progressLabel">Work 1 / 12</div>
+    <div class="lives" id="livesLabel"></div>
+  </div>
+  <div class="work-card">
+    <p class="work-title" id="workTitle"></p>
+    <p class="work-meta" id="workMeta"></p>
+    <div class="journal-stat">
+      <span class="label" id="journalName"></span>
+      <span class="value" id="journalMeanCitedness"></span>
+    </div>
+    <div class="guess-row">
+      <input type="number" id="guessInput" min="0" step="1" placeholder="Your guess">
+      <button type="button" class="btn primary" id="guessBtn">Guess</button>
+    </div>
+    <div class="feedback-panel" id="feedbackPanel">
+      <div class="fb-title" id="fbTitle"></div>
+      <div class="fb-detail" id="fbDetail"></div>
+      <div class="btn-row" style="justify-content:center;">
+        <button type="button" class="btn primary" id="nextBtn">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== END ===================== -->
+<div id="endScreen" class="card">
+  <h2 id="endTitle"></h2>
+  <p id="endSubtitle" class="muted"></p>
+  <div class="end-stats">
+    <div class="stat-tile"><div class="num" id="statPlayed">0</div><div class="lbl">works played</div></div>
+    <div class="stat-tile"><div class="num" id="statCorrect">0</div><div class="lbl">close enough</div></div>
+    <div class="stat-tile"><div class="num" id="statLives">3</div><div class="lbl">lives left</div></div>
+  </div>
+
+  <div class="corr-banner" id="corrBanner"></div>
+
+  <div class="share-row">
+    <button type="button" class="btn small share-btn bluesky" id="shareBluesky">🦋 Bluesky</button>
+    <button type="button" class="btn small share-btn mastodon" id="shareMastodon">🐘 Mastodon</button>
+    <button type="button" class="btn small share-btn linkedin" id="shareLinkedin">in LinkedIn</button>
+  </div>
+
+  <h3>Journal mean citedness vs. actual citations</h3>
+  <div class="chart-toolbar">
+    <p class="muted" style="margin:0;">Hover a dot for the title, click to open the paper.</p>
+    <button type="button" class="btn small" id="downloadChart1Btn">⬇ Download PNG</button>
+  </div>
+  <div class="chart-wrap"><svg class="scatter" id="scatterSvg"></svg></div>
+
+  <h3>Your guesses vs. actual citations</h3>
+  <div class="chart-toolbar">
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--c-accent);"></span>Actual citations</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--c-guess);"></span>Your guess</span>
+    </div>
+    <button type="button" class="btn small" id="downloadChart2Btn">⬇ Download PNG</button>
+  </div>
+  <div class="chart-wrap"><svg class="scatter" id="guessSvg"></svg></div>
+
+  <p class="muted"><button type="button" class="list-toggle" id="toggleTableBtn">Show as list</button></p>
+  <div class="table-wrap">
+    <table class="results-table" id="resultsTable">
+      <thead><tr><th>Work</th><th>Journal mean citedness</th><th>Your guess</th><th>Actual citations</th></tr></thead>
+      <tbody id="resultsTableBody"></tbody>
+    </table>
+  </div>
+  <div class="btn-row">
+    <button type="button" class="btn primary" id="playAgainBtn">Play again (same author)</button>
+    <button type="button" class="btn" id="newAuthorBtn">New author</button>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  <a href="https://github.com/LukasRoeseler/cited" target="_blank" rel="noopener">Cited</a> · data via <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a> ·
+  <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">Why one number can't describe a journal</a>
+  <div class="citation-block">
+    <span class="citation-text" id="citationText" title="Click to copy citation">Röseler, L. (2026). <i>Cited</i> [Web-based game]. https://lukasroeseler.github.io/cited/</span> · CC-BY 4.0
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+const $ = id => document.getElementById(id);
+const MIN_ELIGIBLE = 5;
+const MAX_ROUND = 30;
+const GAME_URL = "https://lukasroeseler.github.io/cited/";
+const APA_CITATION = "Röseler, L. (2026). Cited [Web-based game]. " + GAME_URL;
+
+/* ============== helpers ============== */
+function normalizeOrcid(raw){
+  let s = (raw||"").trim();
+  s = s.replace(/^https?:\/\//i, "");
+  s = s.replace(/^(www\.)?orcid\.org\//i, "");
+  s = s.replace(/\/$/, "");
+  return s.toUpperCase();
+}
+function isValidOrcid(s){
+  return /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(s);
+}
+function shortId(url){
+  if (!url) return null;
+  const parts = url.split("/");
+  return parts[parts.length-1];
+}
+function shuffled(arr){
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+let toastTimer=null;
+function toast(msg){
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
+}
+function showScreen(name){
+  ["startScreen","gameScreen","endScreen"].forEach(id=>{ $(id).style.display = "none"; });
+  $(name+"Screen").style.display = "block";
+  window.scrollTo(0,0);
+}
+
+/* ============== sound (WebAudio, no assets) ============== */
+let audioCtx = null;
+function ctx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, start, dur, type, peak){
+  const c = ctx();
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, c.currentTime+start);
+  gain.gain.setValueAtTime(0.0001, c.currentTime+start);
+  gain.gain.exponentialRampToValueAtTime(peak, c.currentTime+start+0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+start+dur);
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start(c.currentTime+start);
+  osc.stop(c.currentTime+start+dur+0.03);
+}
+function playFunSound(){
+  try{
+    tone(523.25, 0.00, 0.14, "triangle", 0.22);
+    tone(659.25, 0.10, 0.14, "triangle", 0.22);
+    tone(783.99, 0.20, 0.28, "triangle", 0.22);
+  }catch(e){}
+}
+function playSadSound(){
+  try{
+    tone(311.13, 0.00, 0.22, "sawtooth", 0.16);
+    tone(233.08, 0.18, 0.40, "sawtooth", 0.16);
+  }catch(e){}
+}
+
+/* ============== OpenAlex fetching ============== */
+function mailtoParam(){
+  const v = $("emailInput").value.trim();
+  return v ? ("&mailto="+encodeURIComponent(v)) : "";
+}
+async function fetchAuthorByOrcid(orcid){
+  const res = await fetch("https://api.openalex.org/authors/orcid:"+orcid+"?"+mailtoParam().replace(/^&/,""));
+  if (!res.ok) throw new Error("AUTHOR_NOT_FOUND");
+  return res.json();
+}
+async function fetchAuthorWorks(orcid){
+  const res = await fetch("https://api.openalex.org/works?filter=author.orcid:"+orcid+
+    "&per_page=200&select=id,doi,title,publication_year,cited_by_count,primary_location"+mailtoParam());
+  if (!res.ok) throw new Error("WORKS_LOAD_FAILED");
+  return res.json();
+}
+async function loadCachedSnapshot(orcid){
+  try{
+    const res = await fetch("data/orcid-"+orcid+".json", {cache:"no-store"});
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json || !Array.isArray(json.pool) || json.pool.length===0) return null;
+    return json;
+  } catch(e){ return null; }
+}
+async function fetchSourcesInfo(sourceShortIds){
+  const map = {};
+  const chunks = [];
+  for (let i=0;i<sourceShortIds.length;i+=25) chunks.push(sourceShortIds.slice(i,i+25));
+  for (const chunk of chunks){
+    if (chunk.length===0) continue;
+    const res = await fetch("https://api.openalex.org/sources?filter=ids.openalex:"+chunk.join("|")+
+      "&per_page="+chunk.length+"&select=id,display_name,summary_stats"+mailtoParam());
+    if (!res.ok) continue;
+    const json = await res.json();
+    (json.results||[]).forEach(s=>{
+      const sid = shortId(s.id);
+      const mc = s.summary_stats && typeof s.summary_stats["2yr_mean_citedness"]==="number" ? s.summary_stats["2yr_mean_citedness"] : null;
+      map[sid] = { name: s.display_name, meanCitedness: mc };
+    });
+  }
+  return map;
+}
+
+/* ============== stats: Spearman rank correlation ============== */
+function rankArray(arr){
+  const idx = arr.map((v,i)=>i).sort((a,b)=>arr[a]-arr[b]);
+  const ranks = new Array(arr.length);
+  let i=0;
+  while(i<idx.length){
+    let j=i;
+    while(j+1<idx.length && arr[idx[j+1]]===arr[idx[i]]) j++;
+    const avgRank = (i+j)/2 + 1;
+    for (let k=i;k<=j;k++) ranks[idx[k]] = avgRank;
+    i = j+1;
+  }
+  return ranks;
+}
+function spearman(pairs){
+  const n = pairs.length;
+  if (n < 2) return null;
+  const xs = pairs.map(p=>p[0]), ys = pairs.map(p=>p[1]);
+  const rx = rankArray(xs), ry = rankArray(ys);
+  const mx = rx.reduce((a,b)=>a+b,0)/n, my = ry.reduce((a,b)=>a+b,0)/n;
+  let num=0, dx2=0, dy2=0;
+  for (let i=0;i<n;i++){ const dx=rx[i]-mx, dy=ry[i]-my; num+=dx*dy; dx2+=dx*dx; dy2+=dy*dy; }
+  if (dx2===0 || dy2===0) return null;
+  return num/Math.sqrt(dx2*dy2);
+}
+function fmtR(r){
+  if (r==null || !isFinite(r)) return "n/a";
+  const sign = r<0 ? "-" : "";
+  let abs = Math.abs(r).toFixed(2);
+  if (abs.charAt(0)==="0") abs = abs.slice(1);
+  return sign+abs;
+}
+
+/* ============== state ============== */
+const state = {
+  author: null,
+  pool: [],
+  totalAuthorWorks: 0,
+  roundCount: 12,
+  sessionWorks: [],
+  index: 0,
+  lives: 3,
+  correctCount: 0,
+  results: [],
+  finished: false
+};
+
+/* ============== start: ORCID lookup ============== */
+const authorStatus = $("authorStatus");
+const authorWorksBlock = $("authorWorksBlock");
+const poolHint = $("poolHint");
+const roundCountOut = $("roundCountOut");
+const startGameBtn = $("startGameBtn");
+const orcidInput = $("orcidInput");
+
+orcidInput.addEventListener("keydown", e=>{ if (e.key==="Enter") doLookup(); });
+$("fetchAuthorBtn").addEventListener("click", doLookup);
+
+function applyPool(authorName, orcid, pool, totalAuthorWorks, note){
+  if (pool.length < MIN_ELIGIBLE){
+    authorStatus.className = "status err";
+    authorStatus.textContent = "Only "+pool.length+" of "+authorName+"'s works have both a known citation count and a journal with known mean citedness — need at least "+MIN_ELIGIBLE+". Try a different ORCID iD.";
+    authorWorksBlock.style.display = "none";
+    return;
+  }
+  state.author = { orcid: orcid, name: authorName };
+  state.pool = pool;
+  state.totalAuthorWorks = totalAuthorWorks;
+  authorStatus.className = "status ok";
+  authorStatus.textContent = "✓ "+authorName+": "+pool.length+" qualifying works found (out of "+totalAuthorWorks+" total on OpenAlex"+(note||"")+").";
+  const maxRound = Math.min(MAX_ROUND, pool.length);
+  state.roundCount = Math.min(12, maxRound);
+  roundCountOut.textContent = state.roundCount;
+  poolHint.textContent = "Between "+Math.min(MIN_ELIGIBLE,maxRound)+" and "+maxRound+" works this round";
+  startGameBtn.disabled = false;
+}
+
+async function doLookup(){
+  const raw = orcidInput.value.trim();
+  if (!raw) return;
+  const orcid = normalizeOrcid(raw);
+  authorWorksBlock.style.display = "none";
+  startGameBtn.disabled = true;
+  if (!isValidOrcid(orcid)){
+    authorStatus.className = "status err";
+    authorStatus.textContent = "That doesn't look like a valid ORCID iD (expected format 0000-0000-0000-0000).";
+    return;
+  }
+  authorStatus.className = "status pending";
+  authorStatus.textContent = "Looking up this ORCID iD …";
+  try{
+    const cached = await loadCachedSnapshot(orcid);
+    if (cached){
+      authorWorksBlock.style.display = "block";
+      applyPool(cached.author.name, orcid, cached.pool, cached.totalAuthorWorks,
+        ", cached snapshot from "+cached.generatedAt);
+      return;
+    }
+
+    const author = await fetchAuthorByOrcid(orcid);
+    if (!author || !author.display_name) throw new Error("AUTHOR_NOT_FOUND");
+    authorStatus.className = "status pending";
+    authorStatus.textContent = "Loading "+author.display_name+"'s works from OpenAlex …";
+    authorWorksBlock.style.display = "block";
+
+    const worksJson = await fetchAuthorWorks(orcid);
+    const works = worksJson.results || [];
+    state.totalAuthorWorks = (worksJson.meta && worksJson.meta.count) || works.length;
+
+    const sourceIds = new Set();
+    works.forEach(w=>{
+      const src = w.primary_location && w.primary_location.source;
+      if (src && src.id) sourceIds.add(shortId(src.id));
+    });
+    const sourceMap = await fetchSourcesInfo(Array.from(sourceIds));
+
+    const pool = [];
+    works.forEach(w=>{
+      if (typeof w.cited_by_count !== "number") return;
+      const src = w.primary_location && w.primary_location.source;
+      if (!src || !src.id) return;
+      if (src.type !== "journal") return;
+      const info = sourceMap[shortId(src.id)];
+      if (!info || info.meanCitedness==null) return;
+      if (!w.doi) return;
+      pool.push({
+        id: w.id,
+        doi: w.doi,
+        title: w.title || "(untitled)",
+        year: w.publication_year || "?",
+        citedByCount: w.cited_by_count,
+        journalName: info.name || src.display_name || "Unknown journal",
+        journalMeanCitedness: info.meanCitedness
+      });
+    });
+
+    applyPool(author.display_name, orcid, pool, state.totalAuthorWorks, "");
+  } catch(err){
+    authorWorksBlock.style.display = "none";
+    authorStatus.className = "status err";
+    authorStatus.textContent = err.message==="AUTHOR_NOT_FOUND"
+      ? "No OpenAlex record was found for this ORCID iD."
+      : "Network error while loading this author's data. Please try again.";
+  }
+}
+
+$("roundMinus").addEventListener("click", ()=>{
+  const maxRound = Math.min(MAX_ROUND, state.pool.length);
+  state.roundCount = Math.max(Math.min(MIN_ELIGIBLE,maxRound), state.roundCount-1);
+  roundCountOut.textContent = state.roundCount;
+});
+$("roundPlus").addEventListener("click", ()=>{
+  const maxRound = Math.min(MAX_ROUND, state.pool.length);
+  state.roundCount = Math.min(maxRound, state.roundCount+1);
+  roundCountOut.textContent = state.roundCount;
+});
+
+/* ============== game ============== */
+startGameBtn.addEventListener("click", beginGame);
+
+function beginGame(){
+  state.sessionWorks = shuffled(state.pool).slice(0, state.roundCount);
+  state.index = 0;
+  state.lives = 3;
+  state.correctCount = 0;
+  state.results = [];
+  state.finished = false;
+  showScreen("game");
+  renderWork();
+}
+
+function renderLives(){
+  let s = "";
+  for (let i=0;i<3;i++) s += i < state.lives ? "❤" : "<span class='heart lost'>❤</span>";
+  $("livesLabel").innerHTML = s;
+}
+
+function renderWork(){
+  const w = state.sessionWorks[state.index];
+  $("progressLabel").textContent = "Work "+(state.index+1)+" / "+state.sessionWorks.length;
+  renderLives();
+  $("workTitle").textContent = w.title;
+  $("workMeta").textContent = w.year;
+  $("journalName").textContent = w.journalName;
+  $("journalMeanCitedness").textContent = w.journalMeanCitedness.toFixed(2)+" mean citedness";
+  $("guessInput").value = "";
+  $("guessInput").disabled = false;
+  $("guessBtn").disabled = false;
+  $("feedbackPanel").style.display = "none";
+  $("feedbackPanel").className = "feedback-panel";
+  setTimeout(()=>$("guessInput").focus(), 30);
+}
+
+function submitGuess(){
+  const w = state.sessionWorks[state.index];
+  const raw = $("guessInput").value;
+  const guess = Math.round(parseFloat(raw));
+  if (raw==="" || isNaN(guess) || guess < 0){ toast("Enter a non-negative number"); return; }
+
+  const actual = w.citedByCount;
+  const tolerance = Math.max(actual * 0.5, 10);
+  const correct = Math.abs(guess-actual) <= tolerance + 1e-9;
+
+  $("guessInput").disabled = true;
+  $("guessBtn").disabled = true;
+
+  const pct = actual===0 ? (guess===0 ? 0 : Infinity) : Math.round(Math.abs(guess-actual)/actual*100);
+  const panel = $("feedbackPanel");
+  panel.style.display = "block";
+  if (correct){
+    playFunSound();
+    panel.className = "feedback-panel correct";
+    $("fbTitle").textContent = "🎉 Nice guess!";
+    $("fbDetail").textContent = "Actual citations: "+actual+" (you guessed "+guess+", "+(isFinite(pct)?pct+"% off":"way off")+")";
+    state.correctCount++;
+  } else {
+    playSadSound();
+    state.lives--;
+    panel.className = "feedback-panel wrong";
+    $("fbTitle").textContent = "💔 Not close enough";
+    $("fbDetail").textContent = "Actual citations: "+actual+" (you guessed "+guess+", "+(isFinite(pct)?pct+"% off":"way off")+")";
+  }
+  renderLives();
+
+  state.results.push({
+    title: w.title, doi: w.doi,
+    journalMeanCitedness: w.journalMeanCitedness,
+    citedByCount: actual, guess: guess, correct: correct
+  });
+
+  const isLastWork = (state.index+1) >= state.sessionWorks.length;
+  $("nextBtn").textContent = (state.lives<=0) ? "See results →" : (isLastWork ? "Finish →" : "Next →");
+}
+$("guessBtn").addEventListener("click", submitGuess);
+document.addEventListener("keydown", e=>{
+  if (e.key !== "Enter") return;
+  if ($("gameScreen").style.display === "none") return;
+  if (!$("guessInput").disabled){ submitGuess(); }
+  else if ($("feedbackPanel").style.display === "block"){ $("nextBtn").click(); }
+});
+
+$("nextBtn").addEventListener("click", ()=>{
+  if (state.lives<=0){ finishGame(false); return; }
+  const isLastWork = (state.index+1) >= state.sessionWorks.length;
+  if (isLastWork){ finishGame(true); return; }
+  state.index++;
+  renderWork();
+});
+
+/* ============== end screen ============== */
+let lastRho = null;
+function finishGame(won){
+  state.finished = true;
+  showScreen("end");
+  $("endTitle").textContent = won ? "🎉 You made it!" : "Game over";
+  $("endSubtitle").textContent = won
+    ? "You got through all "+state.sessionWorks.length+" works from "+state.author.name+" before running out of lives."
+    : "You ran out of lives after "+state.results.length+" of "+state.sessionWorks.length+" works from "+state.author.name+".";
+  $("statPlayed").textContent = state.results.length;
+  $("statCorrect").textContent = state.correctCount;
+  $("statLives").textContent = Math.max(0,state.lives);
+
+  const pairs = state.results.map(r=>[r.journalMeanCitedness, r.citedByCount]);
+  lastRho = spearman(pairs);
+  $("corrBanner").innerHTML = "Spearman rank correlation between journal mean citedness and actual citations: <b>r<sub>s</sub> = "+fmtR(lastRho)+"</b> (n = "+state.results.length+")";
+
+  renderScatter(state.results);
+  renderGuessChart(state.results);
+  renderResultsTable(state.results);
+  $("resultsTable").style.display = "none";
+  $("toggleTableBtn").textContent = "Show as list";
+}
+$("playAgainBtn").addEventListener("click", beginGame);
+$("newAuthorBtn").addEventListener("click", ()=>{
+  state.author = null; state.pool = [];
+  orcidInput.value = "";
+  authorStatus.className = "status"; authorStatus.textContent = "";
+  authorWorksBlock.style.display = "none";
+  startGameBtn.disabled = true;
+  showScreen("start");
+});
+$("toggleTableBtn").addEventListener("click", ()=>{
+  const t = $("resultsTable");
+  const show = t.style.display === "none";
+  t.style.display = show ? "table" : "none";
+  $("toggleTableBtn").textContent = show ? "Hide list" : "Show as list";
+});
+
+function renderResultsTable(results){
+  const tbody = $("resultsTableBody");
+  tbody.innerHTML = "";
+  results.forEach(r=>{
+    const tr = document.createElement("tr");
+    const tdTitle = document.createElement("td");
+    const a = document.createElement("a");
+    a.href = r.doi.indexOf("http")===0 ? r.doi : ("https://doi.org/"+r.doi);
+    a.target = "_blank"; a.rel = "noopener";
+    a.textContent = r.title;
+    tdTitle.appendChild(a);
+    const tdMc = document.createElement("td");
+    tdMc.textContent = r.journalMeanCitedness.toFixed(2);
+    const tdG = document.createElement("td");
+    tdG.textContent = r.guess;
+    const tdC = document.createElement("td");
+    tdC.textContent = r.citedByCount;
+    tr.appendChild(tdTitle); tr.appendChild(tdMc); tr.appendChild(tdG); tr.appendChild(tdC);
+    tbody.appendChild(tr);
+  });
+}
+
+/* ============== shared SVG chart helpers ============== */
+const ns = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs){
+  const e = document.createElementNS(ns, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function niceMax(v){
+  if (v<=0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v/mag;
+  let n;
+  if (norm<=1) n=1; else if (norm<=2) n=2; else if (norm<=5) n=5; else n=10;
+  return n*mag;
+}
+
+/* ============== chart 1: journal mean citedness vs actual citations ============== */
+function renderScatter(results){
+  const svg = $("scatterSvg");
+  const tooltip = $("tooltip");
+  const W = 620, H = 380;
+  const padL = 56, padR = 20, padT = 16, padB = 46;
+  svg.setAttribute("viewBox", "0 0 "+W+" "+H);
+  svg.innerHTML = "";
+
+  const xMax = niceMax(Math.max(1, ...results.map(r=>r.journalMeanCitedness)) * 1.15);
+  const yMax = niceMax(Math.max(1, ...results.map(r=>r.citedByCount)) * 1.15);
+  const xScale = v => padL + (v/xMax) * (W-padL-padR);
+  const yScale = v => (H-padB) - (v/yMax) * (H-padB-padT);
+
+  const ticks = 5;
+  for (let i=0;i<=ticks;i++){
+    const xv = xMax*i/ticks, yv = yMax*i/ticks;
+    const gx = xScale(xv), gy = yScale(yv);
+    svg.appendChild(svgEl("line", {x1:gx, x2:gx, y1:padT, y2:H-padB, class:"grid-line"}));
+    svg.appendChild(svgEl("line", {x1:padL, x2:W-padR, y1:gy, y2:gy, class:"grid-line"}));
+    const lx = svgEl("text", {x:gx, y:H-padB+16, class:"axis-label", "text-anchor":"middle"});
+    lx.textContent = xv.toFixed(xMax<5?1:0);
+    svg.appendChild(lx);
+    const ly = svgEl("text", {x:padL-8, y:gy+4, class:"axis-label", "text-anchor":"end"});
+    ly.textContent = Math.round(yv);
+    svg.appendChild(ly);
+  }
+  svg.appendChild(svgEl("line", {x1:padL, x2:padL, y1:padT, y2:H-padB, class:"axis-line"}));
+  svg.appendChild(svgEl("line", {x1:padL, x2:W-padR, y1:H-padB, y2:H-padB, class:"axis-line"}));
+
+  const xlab = svgEl("text", {x:(padL+W-padR)/2, y:H-6, class:"axis-label", "text-anchor":"middle"});
+  xlab.textContent = "Journal mean citedness (OpenAlex, 2-yr)";
+  svg.appendChild(xlab);
+  const ylab = svgEl("text", {x:14, y:(padT+H-padB)/2, class:"axis-label", "text-anchor":"middle", transform:"rotate(-90 14 "+((padT+H-padB)/2)+")"});
+  ylab.textContent = "Actual citations of this work";
+  svg.appendChild(ylab);
+
+  results.forEach(r=>{
+    const cx = xScale(r.journalMeanCitedness), cy = yScale(r.citedByCount);
+    const dot = svgEl("circle", {cx:cx, cy:cy, r:6, class:"dot-visible"});
+    const hit = svgEl("circle", {cx:cx, cy:cy, r:13, class:"dot-hit"});
+    const url = r.doi.indexOf("http")===0 ? r.doi : ("https://doi.org/"+r.doi);
+    function showTip(evt){
+      tooltip.style.display = "block";
+      tooltip.innerHTML = "";
+      const b = document.createElement("b"); b.textContent = r.title;
+      const d = document.createElement("div"); d.textContent = "Journal mean citedness: "+r.journalMeanCitedness.toFixed(2)+" · Citations: "+r.citedByCount;
+      tooltip.appendChild(b); tooltip.appendChild(d);
+      tooltip.style.left = (evt.clientX+14)+"px";
+      tooltip.style.top = (evt.clientY+14)+"px";
+    }
+    hit.addEventListener("pointermove", showTip);
+    hit.addEventListener("pointerenter", showTip);
+    hit.addEventListener("pointerleave", ()=>{ tooltip.style.display = "none"; });
+    hit.addEventListener("click", ()=> window.open(url, "_blank", "noopener"));
+    svg.appendChild(dot);
+    svg.appendChild(hit);
+  });
+}
+
+/* ============== chart 2: your guess vs actual, per work ============== */
+function renderGuessChart(results){
+  const svg = $("guessSvg");
+  const tooltip = $("tooltip");
+  const W = 620, H = 380;
+  const padL = 56, padR = 20, padT = 16, padB = 46;
+  svg.setAttribute("viewBox", "0 0 "+W+" "+H);
+  svg.innerHTML = "";
+
+  const ordered = results.slice().sort((a,b)=>a.citedByCount-b.citedByCount);
+  const n = ordered.length;
+  const yMax = niceMax(Math.max(1, ...ordered.map(r=>Math.max(r.citedByCount, r.guess))) * 1.15);
+  const xScale = i => padL + (i+0.5)/n * (W-padL-padR);
+  const yScale = v => (H-padB) - (v/yMax) * (H-padB-padT);
+
+  const ticks = 5;
+  for (let i=0;i<=ticks;i++){
+    const yv = yMax*i/ticks;
+    const gy = yScale(yv);
+    svg.appendChild(svgEl("line", {x1:padL, x2:W-padR, y1:gy, y2:gy, class:"grid-line"}));
+    const ly = svgEl("text", {x:padL-8, y:gy+4, class:"axis-label", "text-anchor":"end"});
+    ly.textContent = Math.round(yv);
+    svg.appendChild(ly);
+  }
+  svg.appendChild(svgEl("line", {x1:padL, x2:padL, y1:padT, y2:H-padB, class:"axis-line"}));
+  svg.appendChild(svgEl("line", {x1:padL, x2:W-padR, y1:H-padB, y2:H-padB, class:"axis-line"}));
+
+  const xlab = svgEl("text", {x:(padL+W-padR)/2, y:H-6, class:"axis-label", "text-anchor":"middle"});
+  xlab.textContent = "Works (sorted by actual citations)";
+  svg.appendChild(xlab);
+  const ylab = svgEl("text", {x:14, y:(padT+H-padB)/2, class:"axis-label", "text-anchor":"middle", transform:"rotate(-90 14 "+((padT+H-padB)/2)+")"});
+  ylab.textContent = "Citations";
+  svg.appendChild(ylab);
+
+  ordered.forEach((r,i)=>{
+    const cx = xScale(i);
+    const cyActual = yScale(r.citedByCount);
+    const cyGuess = yScale(r.guess);
+    svg.appendChild(svgEl("line", {x1:cx, x2:cx, y1:cyActual, y2:cyGuess, class:"connector"}));
+    const dotA = svgEl("circle", {cx:cx, cy:cyActual, r:6, class:"dot-visible"});
+    const dotG = svgEl("circle", {cx:cx, cy:cyGuess, r:6, class:"dot-guess"});
+    const hit = svgEl("rect", {x:cx-13, y:padT, width:26, height:H-padB-padT, class:"dot-hit"});
+    const url = r.doi.indexOf("http")===0 ? r.doi : ("https://doi.org/"+r.doi);
+    function showTip(evt){
+      tooltip.style.display = "block";
+      tooltip.innerHTML = "";
+      const b = document.createElement("b"); b.textContent = r.title;
+      const d = document.createElement("div"); d.textContent = "Your guess: "+r.guess+" · Actual: "+r.citedByCount;
+      tooltip.appendChild(b); tooltip.appendChild(d);
+      tooltip.style.left = (evt.clientX+14)+"px";
+      tooltip.style.top = (evt.clientY+14)+"px";
+    }
+    hit.addEventListener("pointermove", showTip);
+    hit.addEventListener("pointerenter", showTip);
+    hit.addEventListener("pointerleave", ()=>{ tooltip.style.display = "none"; });
+    hit.addEventListener("click", ()=> window.open(url, "_blank", "noopener"));
+    svg.appendChild(dotA);
+    svg.appendChild(dotG);
+    svg.appendChild(hit);
+  });
+}
+
+/* ============== download chart as PNG ============== */
+function downloadSvgAsPng(svg, filename){
+  const clone = svg.cloneNode(true);
+  const vb = svg.viewBox.baseVal;
+  const w = vb.width || svg.clientWidth || 620;
+  const h = vb.height || svg.clientHeight || 380;
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", w);
+  clone.setAttribute("height", h);
+  const bg = getComputedStyle(document.body).backgroundColor || "#ffffff";
+  const bgRect = document.createElementNS(ns, "rect");
+  bgRect.setAttribute("x","0"); bgRect.setAttribute("y","0");
+  bgRect.setAttribute("width", w); bgRect.setAttribute("height", h);
+  bgRect.setAttribute("fill", bg);
+  clone.insertBefore(bgRect, clone.firstChild);
+
+  const source = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([source], {type:"image/svg+xml;charset=utf-8"});
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = function(){
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = w*scale; canvas.height = h*scale;
+    const c2 = canvas.getContext("2d");
+    c2.scale(scale,scale);
+    c2.drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob=>{
+      const link = document.createElement("a");
+      link.download = filename;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    });
+  };
+  img.onerror = function(){ toast("Could not render image for download."); URL.revokeObjectURL(url); };
+  img.src = url;
+}
+$("downloadChart1Btn").addEventListener("click", ()=> downloadSvgAsPng($("scatterSvg"), "cited-mean-citedness-vs-actual.png"));
+$("downloadChart2Btn").addEventListener("click", ()=> downloadSvgAsPng($("guessSvg"), "cited-guess-vs-actual.png"));
+
+/* ============== sharing ============== */
+function shareText(){
+  const name = state.author ? state.author.name : "this researcher";
+  return "I played CITED and for the works of "+name+", the Spearman correlation between average citations from the journals and citations of the works was rs = "+fmtR(lastRho)+". Play at "+GAME_URL;
+}
+$("shareBluesky").addEventListener("click", ()=>{
+  window.open("https://bsky.app/intent/compose?text="+encodeURIComponent(shareText()), "_blank", "noopener");
+});
+$("shareMastodon").addEventListener("click", ()=>{
+  window.open("https://mastodonshare.com/?text="+encodeURIComponent(shareText()), "_blank", "noopener");
+});
+$("shareLinkedin").addEventListener("click", ()=>{
+  const text = shareText();
+  const openShare = ()=> window.open("https://www.linkedin.com/sharing/share-offsite/?url="+encodeURIComponent(GAME_URL), "_blank", "noopener");
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>{ toast("Post text copied — paste it into your LinkedIn post."); openShare(); }, openShare);
+  } else {
+    openShare();
+  }
+});
+
+/* ============== citation copy ============== */
+$("citationText").addEventListener("click", ()=>{
+  const text = "Röseler, L. (2026). Cited [Web-based game]. "+GAME_URL;
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=> toast("Citation copied to clipboard."), ()=> toast("Could not copy — please select and copy manually."));
+  } else {
+    toast("Could not copy — please select and copy manually.");
+  }
+});
+
+showScreen("start");
+})();
+</script>
+</body>
+</html>
