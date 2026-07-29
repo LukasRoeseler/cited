@@ -62,8 +62,9 @@ a{ color: var(--c-cyan); }
 .hero-titles h1{
   margin:0; font-size: clamp(1.8rem, 5vw, 2.6rem); line-height:1.25; letter-spacing:2px;
   color: var(--c-accent); text-shadow: 0 0 10px rgba(0,255,157,0.65), 0 0 2px rgba(0,255,157,0.9);
-  text-transform:uppercase;
+  text-transform:uppercase; cursor:pointer; display:inline-block;
 }
+.hero-titles h1:hover{ opacity:0.85; }
 .hero-titles h1 .cursor{ display:inline-block; animation: blink 1s step-end infinite; }
 @keyframes blink{ 50%{ opacity:0; } }
 .hero-titles p{ margin:4px 0 0; font-size:0.85rem; color: var(--c-muted); letter-spacing:0.5px; }
@@ -282,7 +283,7 @@ footer a{ color: var(--c-muted); }
 <div class="hero">
   <div class="hero-inner">
     <div class="hero-titles">
-      <h1>Cited<span class="cursor">_</span></h1>
+      <h1 id="homeLink">Cited<span class="cursor">_</span></h1>
       <p>Guess the citation count. Powered by OpenAlex.</p>
       <div class="hero-links">
         <a href="https://github.com/LukasRoeseler/cited" target="_blank" rel="noopener">GitHub</a>
@@ -420,7 +421,7 @@ footer a{ color: var(--c-muted); }
   <a href="https://github.com/LukasRoeseler/cited" target="_blank" rel="noopener">CITED_</a> data via <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a>
   <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">Why one number cannot describe a journal</a>
   <div class="citation-block">
-    <span class="citation-text" id="citationText" title="Click to copy citation">Roeseler, L. (2026). CITED_ [Web-based game]. https://lukasroeseler.github.io/cited/</span> CC-BY 4.0
+    <span class="citation-text" id="citationText" title="Click to copy citation">Röseler, L. (2026). CITED_ [Web-based game]. https://lukasroeseler.github.io/cited/</span> CC-BY 4.0
   </div>
 </footer>
 
@@ -981,7 +982,7 @@ function finishGame(won){
   $("toggleTableBtn").textContent = "Show list";
 }
 $("playAgainBtn").addEventListener("click", beginGame);
-$("newAuthorBtn").addEventListener("click", ()=>{
+function goToLanding(){
   state.author = null; state.pool = [];
   orcidInput.value = "";
   authorStatus.className = "status"; authorStatus.textContent = "";
@@ -989,7 +990,9 @@ $("newAuthorBtn").addEventListener("click", ()=>{
   authorWorksBlock.style.display = "none";
   startGameBtn.disabled = true;
   showScreen("start");
-});
+}
+$("newAuthorBtn").addEventListener("click", goToLanding);
+$("homeLink").addEventListener("click", goToLanding);
 $("toggleTableBtn").addEventListener("click", ()=>{
   const t = $("resultsTable");
   const show = t.style.display === "none";
@@ -1233,7 +1236,7 @@ $("shareLinkedin").addEventListener("click", ()=>{
 
 /* ============== citation copy ============== */
 $("citationText").addEventListener("click", ()=>{
-  const text = "Roeseler, L. (2026). CITED_ [Web-based game]. "+GAME_URL;
+  const text = "Röseler, L. (2026). CITED_ [Web-based game]. "+GAME_URL;
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(()=> toast("Citation copied to clipboard."), ()=> toast("Could not copy. Select and copy manually."));
   } else {
