@@ -520,6 +520,62 @@ function playNeutralSound(){
     tone(392.00, 0.00, 0.10, "square", 0.10);
   }catch(e){}
 }
+function playStartBeep(){
+  try{
+    tone(880.00, 0.00, 0.08, "square", 0.12);
+    tone(880.00, 0.12, 0.08, "square", 0.12);
+    tone(587.33, 0.24, 0.20, "square", 0.12);
+  }catch(e){}
+}
+
+/* ============== matrix-rain screen transition ============== */
+let matrixActive = false;
+function matrixTransition(onMidpoint, duration){
+  duration = duration || 900;
+  if (matrixActive){ onMidpoint(); return Promise.resolve(); }
+  matrixActive = true;
+  return new Promise(resolve=>{
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "position:fixed;inset:0;z-index:900;pointer-events:none;";
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const fontSize = 16;
+    const columns = Math.max(1, Math.floor(canvas.width / fontSize));
+    const drops = new Array(columns).fill(0).map(()=> Math.floor(Math.random()*-20));
+    const chars = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let midpointDone = false;
+    let firstFrame = true;
+    const start = performance.now();
+    function draw(now){
+      const elapsed = now - start;
+      ctx.fillStyle = firstFrame ? "#060a09" : "rgba(6,10,9,0.15)";
+      firstFrame = false;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.font = fontSize+"px monospace";
+      for (let i=0;i<drops.length;i++){
+        ctx.fillStyle = Math.random()<0.1 ? "#c8ffe9" : "#00ff9d";
+        const ch = chars[Math.floor(Math.random()*chars.length)];
+        ctx.fillText(ch, i*fontSize, drops[i]*fontSize);
+        if (drops[i]*fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+      if (!midpointDone && elapsed > duration*0.45){
+        midpointDone = true;
+        onMidpoint();
+      }
+      if (elapsed < duration){
+        requestAnimationFrame(draw);
+      } else {
+        canvas.remove();
+        matrixActive = false;
+        resolve();
+      }
+    }
+    requestAnimationFrame(draw);
+  });
+}
 
 /* ============== OpenAlex fetching ============== */
 async function fetchAuthorByOrcid(orcid){
@@ -856,14 +912,17 @@ $("roundPlus").addEventListener("click", ()=>{
 startGameBtn.addEventListener("click", beginGame);
 
 function beginGame(){
-  state.sessionWorks = shuffled(state.pool).slice(0, state.roundCount);
-  state.index = 0;
-  state.lives = 3;
-  state.correctCount = 0;
-  state.results = [];
-  state.finished = false;
-  showScreen("game");
-  renderWork();
+  matrixTransition(()=>{
+    state.sessionWorks = shuffled(state.pool).slice(0, state.roundCount);
+    state.index = 0;
+    state.lives = 3;
+    state.correctCount = 0;
+    state.results = [];
+    state.finished = false;
+    showScreen("game");
+    renderWork();
+    playStartBeep();
+  });
 }
 
 function renderLives(){
@@ -959,27 +1018,29 @@ let lastRho = null;
 let lastP = null;
 let lastN = 0;
 function finishGame(won){
-  state.finished = true;
-  showScreen("end");
-  $("endTitle").textContent = won ? "You win" : "Game over";
-  $("endSubtitle").textContent = won
-    ? "You got through all "+state.sessionWorks.length+" works from "+state.author.name+" before running out of lives."
-    : "You ran out of lives after "+state.results.length+" of "+state.sessionWorks.length+" works from "+state.author.name+".";
-  $("statPlayed").textContent = state.results.length;
-  $("statCorrect").textContent = state.correctCount;
-  $("statLives").textContent = Math.max(0,state.lives);
+  matrixTransition(()=>{
+    state.finished = true;
+    showScreen("end");
+    $("endTitle").textContent = won ? "You win" : "Game over";
+    $("endSubtitle").textContent = won
+      ? "You got through all "+state.sessionWorks.length+" works from "+state.author.name+" before running out of lives."
+      : "You ran out of lives after "+state.results.length+" of "+state.sessionWorks.length+" works from "+state.author.name+".";
+    $("statPlayed").textContent = state.results.length;
+    $("statCorrect").textContent = state.correctCount;
+    $("statLives").textContent = Math.max(0,state.lives);
 
-  const pairs = state.pool.map(r=>[r.journalMeanCitedness, r.citedByCount]);
-  lastN = pairs.length;
-  lastRho = spearman(pairs);
-  lastP = spearmanPValue(lastRho, lastN);
-  $("corrBanner").innerHTML = "Journal mean citedness vs actual citations across all "+lastN+" eligible works: <b>r<sub>s</sub> = "+fmtR(lastRho)+"</b>, "+fmtP(lastP)+".";
+    const pairs = state.pool.map(r=>[r.journalMeanCitedness, r.citedByCount]);
+    lastN = pairs.length;
+    lastRho = spearman(pairs);
+    lastP = spearmanPValue(lastRho, lastN);
+    $("corrBanner").innerHTML = "Journal mean citedness vs actual citations across all "+lastN+" eligible works: <b>r<sub>s</sub> = "+fmtR(lastRho)+"</b>, "+fmtP(lastP)+".";
 
-  renderScatter(state.pool);
-  renderGuessChart(state.results);
-  renderResultsTable(state.results);
-  $("resultsTable").style.display = "none";
-  $("toggleTableBtn").textContent = "Show list";
+    renderScatter(state.pool);
+    renderGuessChart(state.results);
+    renderResultsTable(state.results);
+    $("resultsTable").style.display = "none";
+    $("toggleTableBtn").textContent = "Show list";
+  });
 }
 $("playAgainBtn").addEventListener("click", beginGame);
 function goToLanding(){
