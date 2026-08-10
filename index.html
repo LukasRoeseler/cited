@@ -353,9 +353,9 @@ footer a{ color: var(--c-muted); }
     <li>Enter an ORCID iD, or search a name.</li>
     <li>We pull journal works from OpenAlex, each with the journal's mean citedness.</li>
     <li>Guess how many times each work was cited.</li>
-    <li>Correct is based on how many times over or under your guess is, not a fixed number. Within about 10% earns a bonus life, no limit. Within about 50%, or within 2 citations, nothing happens. Otherwise you lose a life. <button type="button" class="info-btn" id="scoringInfoBtn" aria-label="Show scoring chart">?</button></li>
+    <li>Correct is based on how many times over or under your guess is, not a fixed number. Within about 10% earns a bonus life. Within about 50%, or within 2 citations, nothing happens. Otherwise you lose a life. <button type="button" class="info-btn" id="scoringInfoBtn" aria-label="Show scoring chart">?</button></li>
     <li>You start with 3 lives. Finish the round before you run out to win.</li>
-    <li>At the end you get a rank correlation, two charts, and share buttons.</li>
+    <li>At the end, you get a summary of your results.</li>
   </ol>
   <div class="info-box">Mean citedness is based on citation counts via OpenAlex. It is OpenAlex's 2-year mean citedness, similar to Clarivate's Journal Impact Factor.</div>
   <div class="info-box">Citation counts measure attention, not quality. <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">Read why one number cannot describe a journal</a>.</div>
@@ -673,16 +673,16 @@ function matrixTransition(onReveal, duration){
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1;
 
-      const spawnFactor = elapsed >= SPAWN_CUTOFF ? 0 : Math.max(0, 1 - (elapsed/SPAWN_CUTOFF)**2);
+      const canRespawn = elapsed < SPAWN_CUTOFF;
       ctx.font = fontSize+"px monospace";
       for (let i=0;i<drops.length;i++){
-        if (Math.random() < spawnFactor){
-          ctx.fillStyle = Math.random()<0.1 ? "#c8ffe9" : "#00ff9d";
-          const ch = chars[Math.floor(Math.random()*chars.length)];
-          ctx.fillText(ch, i*fontSize, drops[i]*fontSize);
-          if (drops[i]*fontSize > canvas.height && Math.random() > 0.95) drops[i] = Math.floor(Math.random()*-6);
-          drops[i]++;
+        ctx.fillStyle = Math.random()<0.1 ? "#c8ffe9" : "#00ff9d";
+        const ch = chars[Math.floor(Math.random()*chars.length)];
+        ctx.fillText(ch, i*fontSize, drops[i]*fontSize);
+        if (drops[i]*fontSize > canvas.height){
+          if (canRespawn && Math.random() > 0.95) drops[i] = Math.floor(Math.random()*-6);
         }
+        drops[i]++;
       }
 
       if (!revealed && elapsed >= REVEAL_AT){
@@ -1249,14 +1249,9 @@ function renderScoringDiagram(){
   svg.setAttribute("viewBox", "0 0 "+W+" "+H);
   svg.innerHTML = "";
 
-  const MAX_ACTUAL = 2000;
-  const xDomain = v => Math.log(v+1);
-  const xMaxLog = xDomain(MAX_ACTUAL);
-  const xScale = v => padL + (xDomain(v)/xMaxLog) * (W-padL-padR);
-  const yScale = v => (H-padB) - (xDomain(Math.max(0,v))/xMaxLog) * (H-padB-padT);
-
+  const MAX_ACTUAL = 200;
   const N = 60;
-  const xsActual = Array.from({length:N+1}, (_,i)=> Math.expm1(xMaxLog*i/N));
+  const xsActual = Array.from({length:N+1}, (_,i)=> MAX_ACTUAL*i/N);
 
   function band(logHalfWidth, floor){
     return xsActual.map(a=>{
@@ -1270,6 +1265,10 @@ function renderScoringDiagram(){
   const neutralBand = band(NEUTRAL_LOG, NEUTRAL_ABS_FLOOR);
   const bonusBand = band(BONUS_LOG, 0);
 
+  const yMax = niceMax(Math.max(...neutralBand.map(b=>b[1])) * 1.05);
+  const xScale = v => padL + (v/MAX_ACTUAL) * (W-padL-padR);
+  const yScale = v => (H-padB) - (v/yMax) * (H-padB-padT);
+
   function drawBand(bandData, className){
     const pathTop = bandData.map((b,i)=> (i===0?"M":"L")+xScale(xsActual[i])+","+yScale(b[1])).join(" ");
     const pathBottom = bandData.slice().reverse().map((b,i)=>{
@@ -1279,14 +1278,15 @@ function renderScoringDiagram(){
     svg.appendChild(svgEl("path", {d: pathTop+" "+pathBottom+" Z", class: className}));
   }
 
-  const ticks = [0,1,5,20,100,500,2000];
-  ticks.forEach(v=>{
-    const gx = xScale(v), gy = yScale(v);
+  const ticks = 5;
+  for (let i=0;i<=ticks;i++){
+    const xv = MAX_ACTUAL*i/ticks, yv = yMax*i/ticks;
+    const gx = xScale(xv), gy = yScale(yv);
     svg.appendChild(svgEl("line", {x1:gx,x2:gx,y1:padT,y2:H-padB,class:"grid-line"}));
     svg.appendChild(svgEl("line", {x1:padL,x2:W-padR,y1:gy,y2:gy,class:"grid-line"}));
-    const lx = svgEl("text", {x:gx,y:H-padB+16,class:"axis-label","text-anchor":"middle"}); lx.textContent=v; svg.appendChild(lx);
-    const ly = svgEl("text", {x:padL-8,y:gy+4,class:"axis-label","text-anchor":"end"}); ly.textContent=v; svg.appendChild(ly);
-  });
+    const lx = svgEl("text", {x:gx,y:H-padB+16,class:"axis-label","text-anchor":"middle"}); lx.textContent=Math.round(xv); svg.appendChild(lx);
+    const ly = svgEl("text", {x:padL-8,y:gy+4,class:"axis-label","text-anchor":"end"}); ly.textContent=Math.round(yv); svg.appendChild(ly);
+  }
   svg.appendChild(svgEl("line", {x1:padL,x2:padL,y1:padT,y2:H-padB,class:"axis-line"}));
   svg.appendChild(svgEl("line", {x1:padL,x2:W-padR,y1:H-padB,y2:H-padB,class:"axis-line"}));
 
@@ -1295,10 +1295,10 @@ function renderScoringDiagram(){
   svg.appendChild(svgEl("line", {x1:xScale(0), y1:yScale(0), x2:xScale(MAX_ACTUAL), y2:yScale(MAX_ACTUAL), class:"diagonal-line"}));
 
   const xlab = svgEl("text", {x:(padL+W-padR)/2,y:H-6,class:"axis-label","text-anchor":"middle"});
-  xlab.textContent = "Actual citations (log scale)";
+  xlab.textContent = "Actual citations";
   svg.appendChild(xlab);
   const ylab = svgEl("text", {x:14,y:(padT+H-padB)/2,class:"axis-label","text-anchor":"middle",transform:"rotate(-90 14 "+((padT+H-padB)/2)+")"});
-  ylab.textContent = "Your guess (log scale)";
+  ylab.textContent = "Your guess";
   svg.appendChild(ylab);
 }
 $("scoringInfoBtn").addEventListener("click", ()=>{
