@@ -821,66 +821,6 @@ function fmtR(r){
   return sign+abs;
 }
 
-/* ============== p-value for Spearman's rho (Student's t approximation) ============== */
-function logGamma(x){
-  const g = 7;
-  const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-    771.32342877765313, -176.61502916214059, 12.507343278686905,
-    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
-  if (x < 0.5) return Math.log(Math.PI/Math.sin(Math.PI*x)) - logGamma(1-x);
-  x -= 1;
-  let a = c[0];
-  const t = x + g + 0.5;
-  for (let i=1;i<g+2;i++) a += c[i]/(x+i);
-  return 0.5*Math.log(2*Math.PI) + (x+0.5)*Math.log(t) - t + Math.log(a);
-}
-function betacf(x,a,b){
-  const MAXIT=200, EPS=3e-7, FPMIN=1e-30;
-  const qab=a+b, qap=a+1, qam=a-1;
-  let c=1, d=1-qab*x/qap;
-  if (Math.abs(d)<FPMIN) d=FPMIN;
-  d=1/d;
-  let h=d;
-  for (let m=1;m<=MAXIT;m++){
-    const m2=2*m;
-    let aa=m*(b-m)*x/((qam+m2)*(a+m2));
-    d=1+aa*d; if (Math.abs(d)<FPMIN) d=FPMIN;
-    c=1+aa/c; if (Math.abs(c)<FPMIN) c=FPMIN;
-    d=1/d; h*=d*c;
-    aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));
-    d=1+aa*d; if (Math.abs(d)<FPMIN) d=FPMIN;
-    c=1+aa/c; if (Math.abs(c)<FPMIN) c=FPMIN;
-    d=1/d;
-    const del=d*c; h*=del;
-    if (Math.abs(del-1)<EPS) break;
-  }
-  return h;
-}
-function betai(a,b,x){
-  if (x<=0) return 0;
-  if (x>=1) return 1;
-  const bt = Math.exp(logGamma(a+b)-logGamma(a)-logGamma(b)+a*Math.log(x)+b*Math.log(1-x));
-  if (x < (a+1)/(a+b+2)) return bt*betacf(x,a,b)/a;
-  return 1 - bt*betacf(1-x,b,a)/b;
-}
-function spearmanPValue(r, n){
-  if (r==null || n<3) return null;
-  if (Math.abs(r) >= 1) return 0;
-  const df = n-2;
-  const t = r * Math.sqrt(df/(1-r*r));
-  const x = df/(df+t*t);
-  let p = betai(df/2, 0.5, x);
-  if (p>1) p=1; if (p<0) p=0;
-  return p;
-}
-function fmtP(p){
-  if (p==null || !isFinite(p)) return "p = n/a";
-  if (p < 0.001) return "p < .001";
-  let s = p.toFixed(3);
-  if (s.charAt(0)==="0") s = s.slice(1);
-  return "p = "+s;
-}
-
 /* ============== feedback text: describe a guess by ratio, not raw percent ============== */
 function describeGuess(guess, actual){
   if (guess === actual) return "Exactly right.";
@@ -1175,7 +1115,6 @@ $("nextBtn").addEventListener("click", ()=>{
 
 /* ============== end screen ============== */
 let lastRho = null;
-let lastP = null;
 let lastN = 0;
 function finishGame(won){
   matrixTransition(()=>{
@@ -1190,8 +1129,7 @@ function finishGame(won){
     const pairs = state.pool.map(r=>[r.journalMeanCitedness, r.citedByCount]);
     lastN = pairs.length;
     lastRho = spearman(pairs);
-    lastP = spearmanPValue(lastRho, lastN);
-    $("corrBanner").innerHTML = "Journal mean citedness vs actual citations across all "+lastN+" eligible works: <b>r<sub>s</sub> = "+fmtR(lastRho)+"</b>, "+fmtP(lastP)+".";
+    $("corrBanner").innerHTML = "Journal mean citedness vs actual citations across all "+lastN+" eligible works: <b>r<sub>s</sub> = "+fmtR(lastRho)+"</b>.";
 
     renderScatter(state.pool);
     renderGuessChart(state.results);
@@ -1504,7 +1442,7 @@ $("downloadChart2Btn").addEventListener("click", ()=> downloadSvgAsPng($("guessS
 /* ============== sharing ============== */
 function shareText(){
   const name = state.author ? state.author.name : "this researcher";
-  return "I played CITED_ and for the works of "+name+", the Spearman correlation between average citations from the journals and citations of the works was rs = "+fmtR(lastRho)+", "+fmtP(lastP)+" (n = "+lastN+"). Guess citation numbers for your works at "+SHARE_URL;
+  return "I played CITED_ and for the works of "+name+", the Spearman correlation between average citations from the journals and citations of the works was rs = "+fmtR(lastRho)+" (n = "+lastN+"). Guess citation numbers for your works at "+SHARE_URL;
 }
 $("shareBluesky").addEventListener("click", ()=>{
   window.open("https://bsky.app/intent/compose?text="+encodeURIComponent(shareText()), "_blank", "noopener");
