@@ -54,7 +54,9 @@ a{ color: var(--c-cyan); }
   box-shadow: 0 0 18px rgba(0,255,157,0.25);
   padding: 28px clamp(14px,4vw,32px);
 }
+#heroRain{ position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
 .hero-inner{
+  position:relative; z-index:1;
   max-width: 920px; margin:0 auto;
   display:flex; align-items:center; gap: 18px; flex-wrap:wrap;
 }
@@ -306,6 +308,7 @@ footer a{ color: var(--c-muted); }
 <body>
 
 <div class="hero">
+  <canvas id="heroRain" aria-hidden="true"></canvas>
   <div class="hero-inner">
     <div class="hero-titles">
       <h1 id="homeLink">Cited<span class="cursor">_</span></h1>
@@ -317,10 +320,8 @@ footer a{ color: var(--c-muted); }
 
 <!-- ===================== START ===================== -->
 <div id="startScreen" class="card">
-  <h2>How many times was this cited</h2>
+  <h2>How many times was this cited?</h2>
   <div class="field">
-    <label for="orcidInput">ORCID iD or name</label>
-    <span class="hint">Example: 0000-0002-6446-1901</span>
     <div class="input-row">
       <input type="text" id="orcidInput" placeholder="ORCID iD or name" maxlength="120">
       <button type="button" class="btn primary" id="fetchAuthorBtn">Find author</button>
@@ -351,14 +352,13 @@ footer a{ color: var(--c-muted); }
   <h2>How to Play</h2>
   <ol class="rules">
     <li>Enter an ORCID iD, or search a name.</li>
-    <li>We pull journal works from OpenAlex, each with the journal's mean citedness.</li>
+    <li>We pull journal works from OpenAlex, each with the journal's mean citedness and citation number.</li>
     <li>Guess how many times each work was cited.</li>
     <li>Correct is based on how many times over or under your guess is, not a fixed number. Within about 10% earns a bonus life. Within about 50%, or within 2 citations, nothing happens. Otherwise you lose a life. <button type="button" class="info-btn" id="scoringInfoBtn" aria-label="Show scoring chart">?</button></li>
     <li>You start with 3 lives. Finish the round before you run out to win.</li>
     <li>At the end, you get a summary of your results.</li>
   </ol>
-  <div class="info-box">Mean citedness is based on citation counts via OpenAlex. It is OpenAlex's 2-year mean citedness, similar to Clarivate's Journal Impact Factor.</div>
-  <div class="info-box">Citation counts measure attention, not quality. <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">Read why one number cannot describe a journal</a>.</div>
+  <div class="info-box">Mean citedness refers to OpenAlex's 2-year mean citedness, which is similar to Clarivate's Journal Impact Factor. Citation counts measure attention, not quality. <a href="https://lukasroeseler.github.io/unimuenster/bibliometrics-101/index.html" target="_blank" rel="noopener">Read why one number cannot describe a journal</a>.</div>
 </div>
 
 <!-- ===================== GAME ===================== -->
@@ -454,6 +454,16 @@ footer a{ color: var(--c-muted); }
       <span class="legend-item"><span class="legend-swatch" style="background:var(--c-accent);"></span>Bonus, life gained</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--c-cyan);"></span>Neutral, nothing happens</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--c-danger);"></span>Miss, life lost</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="warningModal">
+  <div class="modal-card">
+    <h3>Before you play</h3>
+    <p>When working with citation numbers, please beware that citation counts are no appropriate measure for research quality.</p>
+    <div class="btn-row">
+      <button type="button" class="btn primary" id="warningContinueBtn">Understood, let me play.</button>
     </div>
   </div>
 </div>
@@ -1048,7 +1058,13 @@ $("roundPlus").addEventListener("click", ()=>{
 });
 
 /* ============== game ============== */
-startGameBtn.addEventListener("click", beginGame);
+startGameBtn.addEventListener("click", ()=>{
+  $("warningModal").classList.add("show");
+});
+$("warningContinueBtn").addEventListener("click", ()=>{
+  $("warningModal").classList.remove("show");
+  beginGame();
+});
 
 function beginGame(){
   startGameBtn.disabled = true;
@@ -1079,7 +1095,7 @@ function renderWork(){
   $("workTitle").textContent = w.title;
   $("workMeta").textContent = w.year;
   $("journalName").textContent = w.journalName;
-  $("journalMeanCitedness").textContent = w.journalMeanCitedness.toFixed(2)+" mean citedness";
+  $("journalMeanCitedness").textContent = w.journalMeanCitedness.toFixed(2);
   $("guessInput").value = "";
   $("guessInput").disabled = false;
   $("guessBtn").disabled = false;
@@ -1515,6 +1531,43 @@ $("citationText").addEventListener("click", ()=>{
     toast("Could not copy. Select and copy manually.");
   }
 });
+
+/* ============== perpetual header rain (decorative, infinite loop) ============== */
+function startHeroRain(){
+  const canvas = $("heroRain");
+  const ctx = canvas.getContext("2d");
+  const fontSize = 14;
+  const chars = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let cols, drops;
+  function resize(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(rect.width));
+    canvas.height = Math.max(1, Math.round(rect.height));
+    cols = Math.max(1, Math.floor(canvas.width / fontSize));
+    drops = new Array(cols).fill(0).map(()=> Math.floor(Math.random() * (canvas.height/fontSize)));
+  }
+  resize();
+  window.addEventListener("resize", resize);
+  function draw(){
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.font = fontSize+"px monospace";
+    for (let i=0;i<cols;i++){
+      ctx.fillStyle = Math.random()<0.08 ? "rgba(200,255,233,0.5)" : "rgba(0,255,157,0.4)";
+      const ch = chars[Math.floor(Math.random()*chars.length)];
+      ctx.fillText(ch, i*fontSize, drops[i]*fontSize);
+      if (drops[i]*fontSize > canvas.height && Math.random() > 0.97) drops[i] = 0;
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+startHeroRain();
 
 showScreen("start");
 })();
