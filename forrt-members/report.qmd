@@ -1,0 +1,424 @@
+---
+title: "Journal mean citedness and the citation counts of individual works"
+subtitle: "A descriptive analysis of works by FORRT contributors"
+author: "Lukas Röseler"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    embed-resources: true
+    theme: cosmo
+    fig-width: 7
+    fig-height: 4.2
+    df-print: kable
+bibliography: references.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+---
+
+```{python}
+#| label: setup
+#| echo: false
+#| warning: false
+
+import sys, os
+sys.path.insert(0, "scripts")
+
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import analyse as A
+
+mpl.rcParams.update({
+    "figure.dpi": 130,
+    "font.size": 9,
+    "axes.grid": True,
+    "grid.alpha": 0.25,
+    "grid.linewidth": 0.5,
+    "axes.axisbelow": True,
+})
+
+d = A.load()
+meta = d["meta"]
+w = A.build_frame(d)
+aw = d["author_works"]
+
+# Result 2
+elig2 = A.eligible(w, A.CORR_YEAR_MIN, A.CORR_YEAR_MAX)
+corr = A.author_correlations(elig2, aw)
+rs = A.summarise_rho(corr)
+corr_strict = A.author_correlations(elig2, aw, A.MIN_WORKS_STRICT, A.MIN_JOURNALS_STRICT)
+rs_strict = A.summarise_rho(corr_strict)
+corr_allyears = A.author_correlations(A.eligible(w, 1000, None), aw)
+rs_allyears = A.summarise_rho(corr_allyears)
+
+# Result 3
+elig3 = A.eligible(w, A.FORRT_YEAR_MIN, None)
+paired = A.paired_forrt(elig3, aw)
+ps = A.summarise_paired(paired)
+mdl_df = A.model_frame(elig3, aw, paired["person_id"])
+fits = A.fit_models(mdl_df)
+
+# Persist the per-researcher correlations without any identifying column.
+corr.to_csv(os.path.join("data", "author_correlations.csv"), index=False)
+
+def n(x):
+    return f"{int(x):,}"
+
+def per_doubling(irr):
+    return irr ** np.log(2)
+
+fl = w[w["forrt_listed"] == 1]
+n_forrt_journal = int(((fl["source_type"] == "journal") & (fl["type"] == "article")).sum())
+```
+
+## Abstract {.unnumbered}
+
+Journal-level citation metrics are often read as a guide to how much attention an
+individual paper will get. This report checks how closely the two track, using
+the published output of contributors to FORRT, the Framework for Open and
+Reproducible Research Training. Starting from `{python} n(meta['n_valid_orcids'])`
+ORCID iDs, `{python} n(meta['n_unique_works'])` unique works were retrieved from
+OpenAlex and deduplicated across shared authorships. Within an individual
+researcher's own journal articles, the rank correlation between a journal's
+2-year mean citedness and the citations of the specific article was positive but
+moderate, with a median of `{python} f"{rs['median']:.2f}"` across
+`{python} n(rs['n'])` researchers. Works listed on FORRT's own publication page
+were more cited than the same contributors' other recent works, by a factor of
+about `{python} f"{ps['ratio']:.1f}"`, though most of that gap is accounted for by
+publication venue, contributor count, and time since publication.
+
+## Introduction
+
+A journal's average citation rate is frequently used as a stand-in for the likely
+impact of a single article published in it. The practice is long criticised
+[@seglen1997; @dora], but it persists in hiring, promotion, and funding
+decisions. The question this report addresses is narrow and empirical: inside one
+researcher's own body of work, how well does the average citedness of the journals
+they publish in predict how often each of their specific papers is cited?
+
+The analysis uses FORRT contributors as a convenient, publicly documented sample
+of active researchers [@forrt]. It is descriptive. It does not evaluate anyone's
+research, and it is not an assessment of FORRT. This report accompanies CITED_
+[@cited], a small browser game built on the same data, in which players try to
+guess a paper's citation count when shown only its journal's mean citedness.
+
+## Methods
+
+### Data sources
+
+Contributors were taken from FORRT's contributor table, a CSV of
+`{python} n(meta['n_contributor_project_rows'])` person-by-project rows covering
+73 projects, published in the FORRT website repository under CC BY-NC-SA 4.0
+[@forrt]. Bibliographic data came from OpenAlex [@openalex], retrieved on
+`{python} meta['fetched_at_utc'][:10]`.
+
+Two FORRT lists need to be kept apart. The **projects** listing names 73
+projects, each with a page on forrt.org but no DOI, so project membership cannot
+be mapped onto specific publications. The separate **publications** list does
+carry DOIs, and that list is what defines a work as FORRT-listed here. No attempt
+was made to match the 73 projects to outputs.
+
+### ORCID handling
+
+ORCID values in the contributor table are inconsistently formatted. Some are bare
+identifiers and many carry a full `https://orcid.org/` prefix, with one leading
+slash. After stripping the scheme, host, and slashes, there were
+`{python} n(meta['n_valid_orcids'])` valid unique ORCID iDs. A further
+`{python} meta['n_malformed_orcids']` values could not be repaired, such as
+identifiers missing a digit, and `{python} n(meta['n_names_without_orcid'])`
+named contributors have no ORCID at all. Those contributors are absent from this
+analysis, which is a coverage limit rather than a judgement about them. The full
+audit trail is in `data/orcid_normalization.csv`.
+
+### Retrieval
+
+For each valid ORCID, all works were retrieved by cursor pagination, giving
+`{python} n(meta['n_unique_works'])` unique works linked by
+`{python} n(meta['n_author_work_links'])` author-to-work relations. The gap
+between those two numbers is deduplication: a work co-authored by several FORRT
+contributors is stored once but counted for each of them.
+`{python} n(int((w['n_forrt_authors'] >= 2).sum()))` works have two or more FORRT
+contributors as authors. Journal metadata was then retrieved for all
+`{python} n(meta['n_sources'])` distinct sources. The whole fetch took
+`{python} n(meta['n_api_calls'])` API calls.
+
+FORRT's publication list yielded `{python} meta['n_forrt_dois_listed']` distinct
+DOIs, of which `{python} meta['n_forrt_dois_resolved']` resolved in OpenAlex.
+The `{python} len(meta['forrt_dois_unresolved'])` that did not are a preprint and
+an article in a very new journal, neither indexed at the time of retrieval. Of the
+resolved works, `{python} n_forrt_journal` are journal articles and the rest are
+preprints.
+
+### Eligibility
+
+A work was eligible when it sat in a source of type journal, that journal had a
+2-year mean citedness, the work was typed as an article, and its citation count
+was present. Restricting to journals is necessary rather than cosmetic: OpenAlex
+also reports a 2-year mean citedness for repositories and book platforms, and
+`{python} n(int((w['source_type'] == 'repository').sum()))` of the retrieved works
+sit in repositories. Including those would mean comparing a paper against the
+average citedness of a preprint server.
+
+```{python}
+#| label: tbl-attrition
+#| echo: false
+#| output: asis
+#| tbl-cap: "Works remaining after each eligibility step, for the correlation analysis."
+t = A.attrition(w, A.CORR_YEAR_MIN, A.CORR_YEAR_MAX).copy()
+t["Works remaining"] = t["Works remaining"].map(lambda v: f"{v:,}")
+print(t.to_markdown(index=False))
+```
+
+Two publication windows are used. The correlation analysis is restricted to
+`{python} A.CORR_YEAR_MIN` to `{python} A.CORR_YEAR_MAX`, because a journal's
+current 2-year metric is a poor comparison for works published decades earlier,
+and works from the last two years have had little time to accrue citations. The
+FORRT comparison uses `{python} A.FORRT_YEAR_MIN` onward, because FORRT's own
+outputs only exist from then, and applying the earlier window would discard most
+of them.
+
+### Analysis
+
+For each researcher, Spearman's rho was computed between the 2-year mean
+citedness of the journal each of their articles appeared in and that article's own
+citation count. A researcher was included when they had at least
+`{python} A.MIN_WORKS` eligible works in at least `{python} A.MIN_JOURNALS`
+distinct journals. The requirement on distinct journals matters more than the one
+on works, because mean citedness is a single value per journal, so a researcher
+publishing repeatedly in a few journals produces a correlation built almost
+entirely on ties. Works with zero citations were kept, since dropping them would
+select on the outcome.
+
+The FORRT comparison is within researcher. For every contributor holding at least
+one FORRT-listed eligible work and at least one other eligible work of their own,
+the contrast is the log ratio of the median citations of the two sets. This is
+tested across contributors with a Wilcoxon signed-rank test, with a bootstrap
+interval on the median. A negative binomial regression then estimates citations
+from FORRT listing, contributor count, journal mean citedness, and time since
+publication. Poisson was fitted first only to check dispersion. Standard errors
+are clustered on journal, since works in the same journal share the journal
+predictor. Analysis code is in `scripts/analyse.py`.
+
+## Results
+
+### The corpus
+
+The retrieved corpus covers `{python} n(meta['n_unique_works'])` unique works.
+Citation counts are heavily right-skewed and many works have none, which is
+typical and is why the models below use rank and count methods rather than
+ordinary regression.
+
+```{python}
+#| label: fig-corpus
+#| echo: false
+#| fig-cap: "Left: works per contributor among eligible articles. Centre: citations per work, log scale, zero-citation works shown in the leftmost bin. Right: eligible articles by publication year."
+
+el = A.eligible(w, 1000, None)
+per_author = aw.merge(el[["work_id"]], on="work_id").groupby("person_id").size()
+
+fig, axes = plt.subplots(1, 3, figsize=(9.6, 3.1))
+
+axes[0].hist(per_author, bins=30, color="#4878a8", edgecolor="white", linewidth=0.5)
+axes[0].set_xlabel("Eligible works per contributor")
+axes[0].set_ylabel("Contributors")
+
+cites = el["cited_by_count"].clip(lower=0)
+axes[1].hist(np.log10(cites + 1), bins=35, color="#4878a8", edgecolor="white", linewidth=0.5)
+axes[1].set_xlabel("Citations per work (log10 of count + 1)")
+axes[1].set_ylabel("Works")
+
+yr = el[el["publication_year"] >= 1980]["publication_year"]
+axes[2].hist(yr, bins=int(yr.max() - yr.min()) + 1, color="#4878a8", edgecolor="white", linewidth=0.3)
+axes[2].set_xlabel("Publication year")
+axes[2].set_ylabel("Works")
+
+for ax in axes:
+    ax.spines[["top", "right"]].set_visible(False)
+fig.tight_layout()
+plt.show()
+```
+
+### How well journal mean citedness tracks individual citations
+
+`{python} n(rs['n'])` of the `{python} n(meta['n_valid_orcids'])` contributors met
+the inclusion criteria. The median correlation was
+`{python} f"{rs['median']:.2f}"`, with an interquartile range of
+`{python} f"{rs['q1']:.2f}"` to `{python} f"{rs['q3']:.2f}"`.
+`{python} f"{100 * rs['prop_positive']:.0f}"` percent of researchers
+(`{python} n(rs['n_positive'])` of `{python} n(rs['n'])`) had a positive
+correlation, `{python} A.fmt_p(rs['sign_p'])`.
+
+So the relationship is real and consistently positive in direction, but moderate
+in size. A median rho near `{python} f"{rs['median']:.2f}"` means journal mean
+citedness orders a researcher's own papers by citation count considerably better
+than chance and considerably worse than reliably.
+
+```{python}
+#| label: fig-rho
+#| echo: false
+#| fig-cap: "Distribution across researchers of the within-researcher rank correlation between journal mean citedness and the citation count of the individual article."
+
+fig, ax = plt.subplots(figsize=(6.4, 3.4))
+A.plot_rho_hist(corr, ax)
+fig.tight_layout()
+plt.show()
+```
+
+Both sensitivity checks point the same way. Requiring at least
+`{python} A.MIN_WORKS_STRICT` works in `{python} A.MIN_JOURNALS_STRICT` journals
+leaves `{python} n(rs_strict['n'])` researchers with a median of
+`{python} f"{rs_strict['median']:.2f}"`. Dropping the year window entirely gives
+`{python} n(rs_allyears['n'])` researchers and a median of
+`{python} f"{rs_allyears['median']:.2f}"`, slightly lower, as expected when very
+old and very new works are mixed in.
+
+### FORRT-listed works compared with contributors' other works
+
+`{python} n(ps['n'])` contributors had both at least one FORRT-listed eligible
+article and at least one other eligible article of their own from
+`{python} A.FORRT_YEAR_MIN` onward. Their FORRT-listed works were more cited than
+their own other works by a median factor of `{python} f"{ps['ratio']:.1f}"`
+(bootstrap 95 percent interval `{python} f"{ps['ratio_lo']:.1f}"` to
+`{python} f"{ps['ratio_hi']:.1f}"`).
+`{python} f"{100 * ps['prop_higher']:.0f}"` percent of contributors
+(`{python} n(ps['n_higher'])` of `{python} n(ps['n'])`) showed the gap in that
+direction, `{python} A.fmt_p(ps['wilcoxon_p'])`.
+
+```{python}
+#| label: fig-paired
+#| echo: false
+#| fig-cap: "Left: each faint line is one contributor, joining the median citations of their own non-listed works to the median of their FORRT-listed works. Right: distribution of the within-contributor log ratios, with zero marking no difference."
+
+fig, axes = plt.subplots(1, 2, figsize=(8.2, 3.6), gridspec_kw={"width_ratios": [2, 1]})
+A.plot_paired(paired, axes)
+fig.tight_layout()
+plt.show()
+```
+
+That unadjusted gap mixes several things together, so the regression separates
+them. It uses the `{python} n(len(mdl_df))` eligible articles belonging to these
+contributors, of which `{python} n(fits['n_forrt_works'])` are FORRT-listed,
+across `{python} n(fits['full']['n_clusters'])` journals. The Poisson dispersion
+statistic was `{python} f"{fits['full']['dispersion']:.0f}"`, far above 1, which
+is why a negative binomial model is reported.
+
+```{python}
+#| label: tbl-model
+#| echo: false
+#| output: asis
+#| tbl-cap: "Negative binomial model of citation counts. Values are incidence rate ratios with 95 percent confidence intervals, standard errors clustered on journal."
+print(A.irr_table(fits["full"]).to_markdown(index=False))
+```
+
+Reading the table, and expressing the logged predictors per doubling rather than
+per log unit: doubling a journal's mean citedness is associated with about
+`{python} f"{per_doubling(fits['full']['table'].set_index('term').loc['log_mc','irr']):.2f}"`
+times the citations, doubling the number of contributors with about
+`{python} f"{per_doubling(fits['full']['table'].set_index('term').loc['log_n_authors','irr']):.2f}"`
+times, and doubling the time since publication with about
+`{python} f"{per_doubling(fits['full']['table'].set_index('term').loc['log_age','irr']):.2f}"`
+times. Being on FORRT's publication list is associated with about
+`{python} f"{fits['full']['table'].set_index('term').loc['forrt_listed','irr']:.2f}"`
+times the citations once venue, contributor count, and age are held constant.
+
+The comparison between that adjusted figure and the raw factor of
+`{python} f"{ps['ratio']:.1f}"` is the main point of this section. Most of the
+apparent citation advantage of FORRT-listed works is not specific to their being
+FORRT outputs. It follows from their being recent, having many contributors, and
+appearing in higher-citedness journals. Removing contributor count from the model
+raises the FORRT coefficient to
+`{python} f"{fits['no_authors']['table'].set_index('term').loc['forrt_listed','irr']:.2f}"`,
+which shows how much of it travels with author count.
+
+Collinearity was checked rather than assumed. The correlation between FORRT
+listing and log contributor count is
+`{python} f"{fits['corr_forrt_authors']:.2f}"`, and no predictor had a variance
+inflation factor above
+`{python} f"{fits['vif'][fits['vif']['term'] != 'const']['vif'].max():.2f}"`, so
+the two can sit in the same model. Excluding works whose author list is truncated
+at OpenAlex's 100-author cap leaves the FORRT estimate at about
+`{python} f"{fits.get('uncensored_irr_forrt', float('nan')):.2f}"`.
+
+All of this rests on `{python} n(fits['n_forrt_works'])` distinct FORRT-listed
+articles, so the FORRT estimate should be read as a rough indication and not a
+precise effect.
+
+## Limitations
+
+The journal metric and the citation counts do not refer to the same period. A
+journal's 2-year mean citedness is a single current snapshot, while a work's
+citation count is cumulative over its life. The year windows and the age
+covariate reduce this mismatch but do not remove it.
+
+Coverage is incomplete. `{python} n(meta['n_names_without_orcid'])` named
+contributors have no ORCID and are missing entirely, another
+`{python} meta['n_malformed_orcids']` have unusable identifiers, and
+`{python} n(len(meta['orcids_zero_works']))` valid ORCIDs returned no works from
+OpenAlex. Works are also missed where an author's ORCID is not attached to a
+record in OpenAlex.
+
+Result 3 rests on `{python} n(fits['n_forrt_works'])` FORRT-listed articles shared
+among `{python} n(ps['n'])` contributors, so the paired contrasts are not
+independent of each other: the same handful of papers appears in many of them.
+FORRT outputs are also systematically recent and mass-authored, so FORRT
+membership stays entangled with publication era and contributor count even after
+adjustment.
+
+More broadly, works in the same journal and works sharing authors are not
+independent observations. Clustering the standard errors on journal addresses part
+of that and not all of it. Nothing here is causal. These are associations in
+observational bibliographic data, and a citation count measures attention rather
+than quality or rigour. A correlation of this size within a researcher's own
+portfolio gives no licence to use a journal metric to judge an individual paper or
+the person who wrote it.
+
+## Transparency statement
+
+This analysis was designed, coded, and drafted with Claude, an AI assistant made
+by Anthropic, running in Claude Code. The author set the question, chose the
+sample and the main analytic decisions, checked the data sources and the
+behaviour of the OpenAlex API, and reviewed the output. Claude wrote the retrieval
+and analysis code and the first draft of this text.
+
+Every number in this report is computed when the document is rendered, from the
+data files in this folder, rather than typed into the prose. The retrieval script
+and the analysis module are both in the repository, so the figures and statistics
+can be reproduced or corrected. Two errors found during development are worth
+recording, because both changed the results: an early version of the retrieval
+script kept only the first DOI listed for each FORRT publication, which silently
+selected the preprint instead of the published article for two entries and dropped
+one paper with over a hundred citations from the FORRT set; and the eligibility
+filter has to exclude repositories, because OpenAlex reports a 2-year mean
+citedness for them too.
+
+## Data and code availability
+
+All files are in the `forrt-members/` folder of the CITED_ repository at
+<https://github.com/LukasRoeseler/cited>.
+
+- `scripts/fetch_forrt_works.py` retrieves everything from FORRT and OpenAlex.
+- `scripts/analyse.py` holds the analysis functions used by this report.
+- `data/` holds the retrieved tables, including `works.csv`,
+  `author_works.csv`, `sources.csv`, and the ORCID audit trail.
+- `data/author_correlations.csv` holds the per-researcher correlations.
+
+Per-researcher results are reported only in aggregate. FORRT contributors are
+listed publicly for contribution credit, not as participants in a study, so no
+file in this repository joins a person's name or ORCID to their own correlation,
+and no individual is named in this report, including at the extremes of the
+distribution. `data/contributors.csv` retains ORCID iDs because they are needed
+to repeat the retrieval and are already public in FORRT's own table, but it
+carries no results.
+
+Contributor data is reused from FORRT under CC BY-NC-SA 4.0 and has been
+transformed for this analysis [@forrt]. OpenAlex data is CC0 [@openalex]. For a
+plainer discussion of why a single journal number describes a journal poorly, see
+@bibliometrics101.
+
+## References {.unnumbered}
+
+::: {#refs}
+:::
